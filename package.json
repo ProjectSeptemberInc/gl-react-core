@@ -1,0 +1,26 @@
+{
+  "name": "gl-react-core",
+  "version": "0.0.1",
+  "description": "shared code across gl-react and gl-react-native",
+  "main": "src/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ProjectSeptemberInc/gl-react-core.git"
+  },
+  "keywords": [
+    "gl-react"
+  ],
+  "author": "Project September <tech@projectseptember.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ProjectSeptemberInc/gl-react-core/issues"
+  },
+  "homepage": "https://github.com/ProjectSeptemberInc/gl-react-core#readme",
+  "dependencies": {
+    "invariant": "^2.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^1.2.1",
+    "eslint-plugin-react": "^3.2.3"
+  }
+}
