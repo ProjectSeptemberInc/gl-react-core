@@ -3,6 +3,11 @@
   "version": "0.0.1",
   "description": "shared code across gl-react and gl-react-native",
   "main": "src/index.js",
+  "browserify": {
+    "transform": [
+      "babelify"
+    ]
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ProjectSeptemberInc/gl-react-core.git"
@@ -20,6 +25,7 @@
     "invariant": "^2.1.0"
   },
   "devDependencies": {
+    "babelify": "^6.2.0",
     "eslint": "^1.2.1",
     "eslint-plugin-react": "^3.2.3"
   }
