@@ -30,7 +30,7 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
   function buildData (shader, uniformsOriginal, width, height, children, targets) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
     const uniforms = {};
-    for (const key in uniformsOriginal) {
+    for (let key in uniformsOriginal) {
       let value = uniformsOriginal[key];
       // filter out the texture types...
       if (value && (typeof value === "string" || typeof value === "object" && !(value instanceof Array)))
