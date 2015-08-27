@@ -104,7 +104,12 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
   }
 
   class GLView extends Component {
+    constructor (props, context) {
+      super(props, context);
+      this._renderId = 1;
+    }
     render() {
+      const renderId = this._renderId ++;
       const props = this.props;
       const { style, width, height, children, shader, uniforms } = props;
       const cleanedProps = { ...props };
@@ -128,7 +133,8 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
           width,
           height,
           data,
-          targets.length)
+          targets.length,
+          renderId)
       );
     }
   }
