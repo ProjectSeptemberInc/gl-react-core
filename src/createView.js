@@ -85,8 +85,8 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
 
           if (childGLView) {
             const id = data.children.length;
-            const { shader, uniforms, children } = childGLView.props;
-            const dataChild = buildData(shader, uniforms, width, height, children, targets);
+            const { shader, uniforms, children: children2 } = childGLView.props;
+            const dataChild = buildData(shader, uniforms, width, height, children2, targets);
             data.children.push(dataChild);
             data.uniforms[uniform] = textureFromFramebuffer(id);
             return;
@@ -95,9 +95,9 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
       }
 
       // in other cases, we will use child as a target
-      const id = targets.length;
-      data.uniforms[uniform] = textureFromTarget(id);
-      targets.push(renderVtarget(style, width, height, id, children));
+      const tid = targets.length;
+      data.uniforms[uniform] = textureFromTarget(tid);
+      targets.push(renderVtarget(style, width, height, tid, children));
     });
 
     return data;
