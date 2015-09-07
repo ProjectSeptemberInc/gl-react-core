@@ -1,16 +1,16 @@
 const invariant = require("invariant");
 
-function textureFromUniform (contentId) {
+function contentTextureObject (contentId) {
   return { type: "content", id: contentId };
 }
 
-function textureFromImage (srcOrObj) {
+function imageTextureObject (srcOrObj) {
   if (typeof srcOrObj === "string")
     srcOrObj = { uri: srcOrObj };
   return { type: "image", value: srcOrObj };
 }
 
-function textureFromFramebuffer (fbId) {
+function framebufferTextureObject (fbId) {
   return { type: "framebuffer", id: fbId };
 }
 
@@ -27,41 +27,39 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
   }
 
   // buildData traverses the children, add elements to contents array and returns a data object
-  function buildData (shader, uniformsOriginal, width, height, children, contents) {
+  function buildData (shader, glViewUniforms, width, height, glViewChildren, contents) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
-    const uniforms = {};
-    for (let key in uniformsOriginal) {
-      let value = uniformsOriginal[key];
-      // filter out the texture types...
-      if (value && (typeof value === "string" || typeof value === "object" && !(value instanceof Array)))
-        value = textureFromImage(value);
-      uniforms[key] = value;
-    }
 
-    const data = {
-      shader,
-      uniforms,
-      width,
-      height,
-      children: []
-    };
+    const uniforms = { ...glViewUniforms };
+    const children = [];
 
-    React.Children.forEach(children, child => {
+    React.Children.forEach(glViewChildren, child => {
       invariant(child.type === Uniform, "GL.View can only contains children of type GL.Uniform. Got '%s'", child.type && child.type.displayName || child);
-      const { name, children, style } = child.props;
-      invariant(typeof name === "string" && name, "GL.Uniform must define an name String.");
-      invariant(!(name in data.uniforms), "The uniform '%s' set by GL.Uniform is already defined in {uniforms} props");
-      const onlyChild = reactFirstChildOnly(children);
-      if (onlyChild) {
-        if (!React.isValidElement(onlyChild)) {
-          data.uniforms[name] = textureFromImage(onlyChild);
+      const { name, children } = child.props;
+      invariant(typeof name === "string" && name, "GL.Uniform must define an name String");
+      invariant(!(name in glViewUniforms), "The uniform '%s' set by GL.Uniform must not be in {uniforms} props");
+      invariant(!(name in uniforms), "The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform");
+      uniforms[name] = children;
+    });
+
+    Object.keys(uniforms)
+    .filter(key => {
+      const value = uniforms[key];
+      // filter out the texture types...
+      return value && (typeof value === "function" || typeof value === "string" || typeof value === "object" && !(value instanceof Array));
+    })
+    .forEach(name => {
+      const value = reactFirstChildOnly(uniforms[name]);
+      if (value) {
+        if (!React.isValidElement(value)) {
+          uniforms[name] = imageTextureObject(value);
           return;
         }
         else {
           let childGLView;
 
           // Recursively unfold the children while there are GLComponent and not a GLView
-          let c = onlyChild;
+          let c = value;
           do {
             if (c.type === GLView) {
               childGLView = c;
@@ -84,11 +82,12 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
           while(c);
 
           if (childGLView) {
-            const id = data.children.length;
-            const { shader, uniforms, children: children2 } = childGLView.props;
-            const dataChild = buildData(shader, uniforms, width, height, children2, contents);
-            data.children.push(dataChild);
-            data.uniforms[name] = textureFromFramebuffer(id);
+            const id = children.length;
+            const childProps = childGLView.props;
+            children.push(
+              buildData(childProps.shader, childProps.uniforms, width, height, childProps.children, contents)
+            );
+            uniforms[name] = framebufferTextureObject(id);
             return;
           }
         }
@@ -96,11 +95,17 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
       // in other cases, we will use child as a content
       const tid = contents.length;
-      data.uniforms[name] = textureFromUniform(tid);
-      contents.push(renderVcontent(style, width, height, tid, children));
+      uniforms[name] = contentTextureObject(tid);
+      contents.push(renderVcontent(width, height, tid, children));
     });
 
-    return data;
+    return {
+      shader,
+      uniforms,
+      width,
+      height,
+      children
+    };
   }
 
   class GLView extends Component {
