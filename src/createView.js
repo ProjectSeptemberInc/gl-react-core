@@ -99,7 +99,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       // in other cases, we will use child as a content
       const tid = contents.length;
       uniforms[name] = contentTextureObject(tid);
-      contents.push(renderVcontent(width, height, tid, children));
+      contents.push(renderVcontent(width, height, tid, value));
     });
 
     return {
