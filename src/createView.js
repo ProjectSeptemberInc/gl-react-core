@@ -1,7 +1,7 @@
 const invariant = require("invariant");
 
-function textureFromTarget (targetId) {
-  return { type: "target", id: targetId };
+function textureFromUniform (contentId) {
+  return { type: "content", id: contentId };
 }
 
 function textureFromImage (srcOrObj) {
@@ -14,7 +14,7 @@ function textureFromFramebuffer (fbId) {
   return { type: "framebuffer", id: fbId };
 }
 
-module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer, renderVtarget, renderVGL) {
+module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontainer, renderVcontent, renderVGL) {
   const {
     Component,
     PropTypes
@@ -26,8 +26,8 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
       null;
   }
 
-  // buildData traverses the children, add elements to targets array and returns a data object
-  function buildData (shader, uniformsOriginal, width, height, children, targets) {
+  // buildData traverses the children, add elements to contents array and returns a data object
+  function buildData (shader, uniformsOriginal, width, height, children, contents) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
     const uniforms = {};
     for (let key in uniformsOriginal) {
@@ -47,14 +47,14 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
     };
 
     React.Children.forEach(children, child => {
-      invariant(child.type === Target, "GL.View can only contains children of type GL.Target. Got '%s'", child.type && child.type.displayName || child);
-      const { uniform, children, style } = child.props;
-      invariant(typeof uniform === "string" && uniform, "GL.Target must define an uniform String.");
-      invariant(!(uniform in data.uniforms), "The uniform '%s' set by GL.Target is already defined in {uniforms} props");
+      invariant(child.type === Uniform, "GL.View can only contains children of type GL.Uniform. Got '%s'", child.type && child.type.displayName || child);
+      const { name, children, style } = child.props;
+      invariant(typeof name === "string" && name, "GL.Uniform must define an name String.");
+      invariant(!(name in data.uniforms), "The uniform '%s' set by GL.Uniform is already defined in {uniforms} props");
       const onlyChild = reactFirstChildOnly(children);
       if (onlyChild) {
         if (!React.isValidElement(onlyChild)) {
-          data.uniforms[uniform] = textureFromImage(onlyChild);
+          data.uniforms[name] = textureFromImage(onlyChild);
           return;
         }
         else {
@@ -86,18 +86,18 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
           if (childGLView) {
             const id = data.children.length;
             const { shader, uniforms, children: children2 } = childGLView.props;
-            const dataChild = buildData(shader, uniforms, width, height, children2, targets);
+            const dataChild = buildData(shader, uniforms, width, height, children2, contents);
             data.children.push(dataChild);
-            data.uniforms[uniform] = textureFromFramebuffer(id);
+            data.uniforms[name] = textureFromFramebuffer(id);
             return;
           }
         }
       }
 
-      // in other cases, we will use child as a target
-      const tid = targets.length;
-      data.uniforms[uniform] = textureFromTarget(tid);
-      targets.push(renderVtarget(style, width, height, tid, children));
+      // in other cases, we will use child as a content
+      const tid = contents.length;
+      data.uniforms[name] = textureFromUniform(tid);
+      contents.push(renderVcontent(style, width, height, tid, children));
     });
 
     return data;
@@ -120,20 +120,20 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
       delete cleanedProps.uniforms;
       delete cleanedProps.children;
 
-      const targets = [];
-      const data = buildData(shader, uniforms, width, height, children, targets);
+      const contents = [];
+      const data = buildData(shader, uniforms, width, height, children, contents);
 
       return renderVcontainer(
         style,
         width,
         height,
-        targets,
+        contents,
         renderVGL(
           cleanedProps,
           width,
           height,
           data,
-          targets.length,
+          contents.length,
           renderId)
       );
     }
