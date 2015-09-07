@@ -26,15 +26,13 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       null;
   }
 
-  // buildData traverses the children, add elements to contents array and returns a data object
-  function buildData (shader, fboId, glViewUniforms, width, height, glViewChildren, contents) {
+  // buildData traverses the children, add elements to contents array and returns an unresolved data tree
+  function buildData (shader, glViewUniforms, width, height, glViewChildren) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
     const uniforms = { ...glViewUniforms };
     const children = [];
-    const genFboId = (fboIdCounter =>
-      () => ++fboIdCounter===fboId ? ++fboIdCounter : fboIdCounter // ensures a child DO NOT use the same framebuffer of its parent. (skip if same)
-    )(-1);
+    const contents = [];
 
     React.Children.forEach(glViewChildren, child => {
       invariant(child.type === Uniform, "GL.View can only contains children of type GL.Uniform. Got '%s'", child.type && child.type.displayName || child);
@@ -85,30 +83,68 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
           while(c);
 
           if (childGLView) {
-            const id = genFboId();
             const childProps = childGLView.props;
-            children.push(
-              buildData(childProps.shader, id, childProps.uniforms, width, height, childProps.children, contents)
-            );
-            uniforms[name] = FramebufferTextureObject(id);
+            children.push({
+              vdom: childGLView,
+              data: buildData(childProps.shader, childProps.uniforms, width, height, childProps.children),
+              uniform: name
+            });
             return;
           }
         }
       }
 
       // in other cases, we will use child as a content
-      const tid = contents.length;
-      uniforms[name] = ContentTextureObject(tid);
-      contents.push(renderVcontent(width, height, tid, value));
+      contents.push({
+        vdom: value,
+        uniform: name
+      });
     });
 
     return {
       shader,
-      fboId,
       uniforms,
       width,
       height,
-      children
+      children,
+      contents
+    };
+  }
+
+  function resolveData (data) {
+
+    const contents = [];
+
+    function rec (data, fboId) {
+
+      const genFboId = (fboIdCounter =>
+        () => ++fboIdCounter===fboId ? ++fboIdCounter : fboIdCounter // ensures a child DO NOT use the same framebuffer of its parent. (skip if same)
+      )(-1);
+
+      const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, width, height } = data;
+      const uniforms = {...dataUniforms};
+
+      const context = [];
+      const children = [];
+      dataChildren.forEach(({ data: childData, uniform }) => {
+        const id = genFboId();
+        uniforms[uniform] = FramebufferTextureObject(id);
+        const data = rec(childData, id);
+        children.push(data);
+      });
+
+      dataContents.forEach(({ uniform, vdom }) => {
+        const id = contents.length;
+        uniforms[uniform] = ContentTextureObject(id);
+        contents.push(renderVcontent(width, height, id, vdom)); // FIXME width and height feels weird here...
+      });
+
+      return { ...data, uniforms, children, content: undefined, context, fboId };
+    }
+
+    return {
+      data: rec(data, -1),
+      contents: contents
     };
   }
 
@@ -129,8 +165,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       delete cleanedProps.uniforms;
       delete cleanedProps.children;
 
-      const contents = [];
-      const data = buildData(shader, -1, uniforms, width, height, children, contents);
+      const {data, contents} = resolveData(buildData(shader, uniforms, width, height, children));
+
 
       return renderVcontainer(
         style,
