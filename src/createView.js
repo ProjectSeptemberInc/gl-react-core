@@ -1,16 +1,16 @@
 const invariant = require("invariant");
 
-function contentTextureObject (contentId) {
+function ContentTextureObject (contentId) {
   return { type: "content", id: contentId };
 }
 
-function imageTextureObject (srcOrObj) {
+function ImageTextureObject (srcOrObj) {
   if (typeof srcOrObj === "string")
     srcOrObj = { uri: srcOrObj };
   return { type: "image", value: srcOrObj };
 }
 
-function framebufferTextureObject (fbId) {
+function FramebufferTextureObject (fbId) {
   return { type: "framebuffer", id: fbId };
 }
 
@@ -55,7 +55,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       const value = reactFirstChildOnly(uniforms[name]);
       if (value) {
         if (!React.isValidElement(value)) {
-          uniforms[name] = imageTextureObject(value);
+          uniforms[name] = ImageTextureObject(value);
           return;
         }
         else {
@@ -90,7 +90,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
             children.push(
               buildData(childProps.shader, id, childProps.uniforms, width, height, childProps.children, contents)
             );
-            uniforms[name] = framebufferTextureObject(id);
+            uniforms[name] = FramebufferTextureObject(id);
             return;
           }
         }
@@ -98,7 +98,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
       // in other cases, we will use child as a content
       const tid = contents.length;
-      uniforms[name] = contentTextureObject(tid);
+      uniforms[name] = ContentTextureObject(tid);
       contents.push(renderVcontent(width, height, tid, value));
     });
 
