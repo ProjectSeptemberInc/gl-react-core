@@ -27,11 +27,14 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
   }
 
   // buildData traverses the children, add elements to contents array and returns a data object
-  function buildData (shader, glViewUniforms, width, height, glViewChildren, contents) {
+  function buildData (shader, fboId, glViewUniforms, width, height, glViewChildren, contents) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
     const uniforms = { ...glViewUniforms };
     const children = [];
+    const genFboId = (fboIdCounter =>
+      () => ++fboIdCounter===fboId ? ++fboIdCounter : fboIdCounter // ensures a child DO NOT use the same framebuffer of its parent. (skip if same)
+    )(-1);
 
     React.Children.forEach(glViewChildren, child => {
       invariant(child.type === Uniform, "GL.View can only contains children of type GL.Uniform. Got '%s'", child.type && child.type.displayName || child);
@@ -82,10 +85,10 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
           while(c);
 
           if (childGLView) {
-            const id = children.length;
+            const id = genFboId();
             const childProps = childGLView.props;
             children.push(
-              buildData(childProps.shader, childProps.uniforms, width, height, childProps.children, contents)
+              buildData(childProps.shader, id, childProps.uniforms, width, height, childProps.children, contents)
             );
             uniforms[name] = framebufferTextureObject(id);
             return;
@@ -101,6 +104,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
     return {
       shader,
+      fboId,
       uniforms,
       width,
       height,
@@ -126,7 +130,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       delete cleanedProps.children;
 
       const contents = [];
-      const data = buildData(shader, uniforms, width, height, children, contents);
+      const data = buildData(shader, -1, uniforms, width, height, children, contents);
 
       return renderVcontainer(
         style,
