@@ -30,16 +30,18 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
   function buildData (shader, glViewUniforms, width, height, glViewChildren) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
+    const shaderName = Shaders.getName(shader);
+
     const uniforms = { ...glViewUniforms };
     const children = [];
     const contents = [];
 
     React.Children.forEach(glViewChildren, child => {
-      invariant(child.type === Uniform, "GL.View can only contains children of type GL.Uniform. Got '%s'", child.type && child.type.displayName || child);
+      invariant(child.type === Uniform, "(Shader '%s') GL.View can only contains children of type GL.Uniform. Got '%s'", shaderName, child.type && child.type.displayName || child);
       const { name, children } = child.props;
-      invariant(typeof name === "string" && name, "GL.Uniform must define an name String");
-      invariant(!(name in glViewUniforms), "The uniform '%s' set by GL.Uniform must not be in {uniforms} props");
-      invariant(!(name in uniforms), "The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform");
+      invariant(typeof name === "string" && name, "(Shader '%s') GL.Uniform must define an name String", shaderName);
+      invariant(!(name in glViewUniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be in {uniforms} props", shaderName);
+      invariant(!(name in uniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform", shaderName);
       uniforms[name] = children;
     });
 
@@ -84,9 +86,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
           if (childGLView) {
             const childProps = childGLView.props;
+            const w = childProps.width || width;
+            const h = childProps.height || height;
             children.push({
               vdom: value,
-              data: buildData(childProps.shader, childProps.uniforms, width, height, childProps.children),
+              data: buildData(childProps.shader, childProps.uniforms, w, h, childProps.children),
               uniform: name
             });
             return;
@@ -118,7 +122,6 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     // contents are view/canvas/image/video to be rasterized "globally"
     const contentsMeta = findContentsUniq(data);
     const contentsVDOM = contentsMeta.map(({vdom}) => vdom);
-    const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
 
     // recursively find all contents but without duplicates by comparing VDOM reference
     function findContentsUniq (data) {
@@ -155,20 +158,21 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     }
 
     // Recursively "resolve" the data to assign fboId and factorize duplicate uniforms to shared uniforms.
-    function rec (data, fboId, parentContext) {
-      const parentContextFboIds = parentContext.map(({fboId}) => fboId);
+    function rec (data, fboId, parentContext, parentFbos) {
       const parentContextVDOM = parentContext.map(({vdom}) => vdom);
+
 
       const genFboId = (fboIdCounter =>
         () => {
           fboIdCounter ++;
           while (
-            fboIdCounter===fboId || // ensures a child DO NOT use the same framebuffer of its parent. (skip if same)
-            parentContextFboIds.indexOf(fboIdCounter)!==-1) // ensure fbo is not already taken in parent context
+            fboIdCounter === fboId ||
+            parentFbos.indexOf(fboIdCounter)!==-1) // ensure fbo is not already taken in parents
             fboIdCounter ++;
           return fboIdCounter;
         }
       )(-1);
+
 
       const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, ...dataRest } = data;
       const uniforms = {...dataUniforms};
@@ -181,22 +185,34 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
       const context = parentContext.concat(childrenContext);
       const contextVDOM = context.map(({vdom}) => vdom);
+      const contextFbos = context.map(({fboId}) => fboId);
 
       const contextChildren = [];
       const children = [];
-      dataChildren.forEach(child => {
+
+      const childrenToRec = dataChildren.map(child => {
         const { data: childData, uniform, vdom } = child;
-        let fboId;
         let i = contextVDOM.indexOf(vdom);
+        let fboId, addToCollection;
         if (i===-1) {
           fboId = genFboId();
-          children.push(rec(childData, fboId, context));
+          addToCollection = children;
         }
         else {
           fboId = context[i].fboId;
-          if (i >= parentContext.length) // is a new context children
-            contextChildren.push(rec(childData, fboId, context));
+          if (i >= parentContext.length) {// is a new context children
+            addToCollection = contextChildren;
+          }
         }
+        return { fboId, childData, uniform, addToCollection };
+      });
+
+      const childrenFbos = childrenToRec.map(({fboId})=>fboId);
+
+      const allFbos = parentFbos.concat(contextFbos).concat(childrenFbos);
+
+      childrenToRec.forEach(({ fboId, childData, uniform, addToCollection }) => {
+        if (addToCollection) addToCollection.push(rec(childData, fboId, context, allFbos));
         uniforms[uniform] = FramebufferTextureObject(fboId);
       });
 
@@ -216,8 +232,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     }
 
     return {
-      data: rec(data, -1, []),
-      contents: contents
+      data: rec(data, -1, [], []),
+      contentsVDOM
     };
   }
 
@@ -229,16 +245,16 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms } = props;
-      const cleanedProps = { ...props };
-      delete cleanedProps.style;
-      delete cleanedProps.width;
-      delete cleanedProps.height;
-      delete cleanedProps.shader;
-      delete cleanedProps.uniforms;
-      delete cleanedProps.children;
+      const { style, width, height, children, shader, uniforms, debug, ...cleanedProps } = props;
 
-      const {data, contents} = resolveData(buildData(shader, uniforms, width, height, children));
+      invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
+
+      const {data, contentsVDOM} = resolveData(buildData(shader, uniforms, width, height, children));
+      const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
+
+      if (debug) {
+        console.debug("GL.View rendered with", data, contents); // eslint-disable-line no-console
+      }
 
       return renderVcontainer(
         style,
@@ -246,7 +262,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
         height,
         contents,
         renderVGL(
-          cleanedProps,
+          cleanedProps, // eslint-disable-line no-undef
           width,
           height,
           data,
@@ -259,8 +275,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
   GLView.displayName = "GL.View";
   GLView.propTypes = {
     shader: PropTypes.number.isRequired,
-    width: PropTypes.number.isRequired,
-    height: PropTypes.number.isRequired,
+    width: PropTypes.number,
+    height: PropTypes.number,
     uniforms: PropTypes.object,
     opaque: PropTypes.bool
   };
