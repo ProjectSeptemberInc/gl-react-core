@@ -75,9 +75,9 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       return value && (typeof value === "function" || typeof value === "string" || typeof value === "object" && !(value instanceof Array));
     })
     .forEach(name => {
-      const value = reactFirstChildOnly(uniforms[name]);
+      const value = uniforms[name];
       if (value) {
-        if (!React.isValidElement(value)) {
+        if (typeof value !== "object" || !(value instanceof Array) && !React.isValidElement(value)) {
           uniforms[name] = ImageTextureObject(value);
           return;
         }
@@ -300,7 +300,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms, debug, preload, opaque } = props;
+      const { style, width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
 
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
@@ -312,11 +312,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       }
 
       return renderVcontainer(
-        style,
         width,
         height,
         contents,
         renderVGL({
+          ...restProps, // eslint-disable-line no-undef
           width,
           height,
           data,
