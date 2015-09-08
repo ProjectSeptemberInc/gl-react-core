@@ -14,6 +14,29 @@ function FramebufferTextureObject (fbId) {
   return { type: "framebuffer", id: fbId };
 }
 
+function extractImages (uniforms) {
+  const images = [];
+  for (let u in uniforms) {
+    let value = uniforms[u];
+    if (value && typeof value === "object" && value.type === "image" && value.value) {
+      images.push(value.value);
+    }
+  }
+  return images;
+}
+
+function uniqImages (arr) {
+  var uris = [];
+  var coll = [];
+  arr.forEach(function (item) {
+    if (uris.indexOf(item.uri) === -1) {
+      uris.push(item.uri);
+      coll.push(item);
+    }
+  });
+  return coll;
+}
+
 module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontainer, renderVcontent, renderVGL) {
   const {
     Component,
@@ -27,7 +50,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
   }
 
   // buildData traverses the Virtual DOM to generates a data tree
-  function buildData (shader, glViewUniforms, width, height, glViewChildren) {
+  function buildData (shader, glViewUniforms, width, height, glViewChildren, preload) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
     const shaderName = Shaders.getName(shader);
@@ -86,11 +109,15 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
           if (childGLView) {
             const childProps = childGLView.props;
-            const w = childProps.width || width;
-            const h = childProps.height || height;
             children.push({
               vdom: value,
-              data: buildData(childProps.shader, childProps.uniforms, w, h, childProps.children),
+              data: buildData(
+                childProps.shader,
+                childProps.uniforms,
+                childProps.width || width,
+                childProps.height || height,
+                childProps.children,
+                "preload" in childProps ? childProps.preload : preload),
               uniform: name
             });
             return;
@@ -111,13 +138,16 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       width,
       height,
       children,
-      contents
+      contents,
+      preload
     };
   }
 
   // resolveData takes the output of buildData to generate the final data tree
   // that have resolved framebuffers and shared computation of duplicate uniforms (e.g: content / GL.View)
   function resolveData (data) {
+
+    let imagesToPreload = [];
 
     // contents are view/canvas/image/video to be rasterized "globally"
     const contentsMeta = findContentsUniq(data);
@@ -190,7 +220,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
         }
       )(-1);
 
-      const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, ...dataRest } = data;
+      const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, preload, ...dataRest } = data;
       const uniforms = {...dataUniforms};
 
       const shared = findChildrenDuplicates(data, parentContextVDOM);
@@ -241,6 +271,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
         uniforms[uniform] = ContentTextureObject(id);
       });
 
+      // Check images to preload
+      if (preload) {
+        imagesToPreload = imagesToPreload.concat(extractImages(dataUniforms));
+      }
+
       return {
         ...dataRest, // eslint-disable-line no-undef
         uniforms,
@@ -252,7 +287,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
     return {
       data: rec(data, -1, [], []),
-      contentsVDOM
+      contentsVDOM,
+      imagesToPreload: uniqImages(imagesToPreload)
     };
   }
 
@@ -264,11 +300,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms, debug, ...cleanedProps } = props;
+      const { style, width, height, children, shader, uniforms, debug, preload, opaque } = props;
 
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
-      const {data, contentsVDOM} = resolveData(buildData(shader, uniforms, width, height, children));
+      const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload));
       const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
 
       if (debug) {
@@ -280,13 +316,15 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
         width,
         height,
         contents,
-        renderVGL(
-          cleanedProps, // eslint-disable-line no-undef
+        renderVGL({
           width,
           height,
           data,
-          contents.length,
-          renderId)
+          nbContentTextures: contents.length,
+          imagesToPreload,
+          renderId,
+          opaque
+        })
       );
     }
   }
@@ -297,10 +335,12 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     width: PropTypes.number,
     height: PropTypes.number,
     uniforms: PropTypes.object,
-    opaque: PropTypes.bool
+    opaque: PropTypes.bool,
+    preload: PropTypes.bool
   };
   GLView.defaultProps = {
-    opaque: true
+    opaque: true,
+    preload: false
   };
 
   return GLView;
