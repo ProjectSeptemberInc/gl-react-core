@@ -310,7 +310,10 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload));
       const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
 
-      if (debug) {
+      if (debug &&
+        typeof console !== "undefined" &&
+        console.debug // eslint-disable-line
+      ) {
         console.debug("GL.View rendered with", data, contentsVDOM); // eslint-disable-line no-console
       }
 
