@@ -142,25 +142,42 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       return contents;
     }
 
-    // recursively find duplicates of children by comparing VDOM reference
+    // recursively find shared VDOM across direct children.
+    // if a VDOM is used in 2 different children, it means we can share its computation in contextChildren
     function findChildrenDuplicates (data, toIgnore) {
-      const vdoms = data.children.map(({vdom}) => vdom).filter(vdom => toIgnore.indexOf(vdom)===-1);
-      const occurrences = vdoms.map(() => -1); // we will count it once in exploration
-      function rec (data) {
-        data.children.forEach(child => {
-          var i = vdoms.indexOf(child.vdom);
-          if (i !== -1) occurrences[i] ++;
-          rec(child.data);
-        });
+      // FIXME the code here is a bit complex and not so performant.
+      // We should see if we can precompute some data once before
+      function childVDOMs ({vdom,data}, arrVdom, arrData) {
+        if (toIgnore.indexOf(vdom) === -1 && arrVdom.indexOf(vdom) === -1) {
+          arrVdom.push(vdom);
+          arrData.push(data);
+        }
+        data.children.forEach(child => childVDOMs(child, arrVdom, arrData));
       }
-      rec(data);
-      return data.children.filter((child, i) => occurrences[i] > 0);
+      let allVdom = [];
+      let allData = [];
+      const childrenVDOMs = data.children.map(child => {
+        const arrVdom = [];
+        const arrData = [];
+        childVDOMs(child, arrVdom, arrData);
+        allVdom = allVdom.concat(arrVdom);
+        allData = allData.concat(arrData);
+        return arrVdom;
+      });
+      return allVdom.map((vdom, allIndex) => {
+        let occ = 0;
+        for (let i=0; i<childrenVDOMs.length; i++) {
+          if (childrenVDOMs[i].indexOf(vdom) !== -1) {
+            occ ++;
+            if (occ > 1) return { vdom: vdom, data: allData[allIndex] };
+          }
+        }
+      }).filter(obj => obj);
     }
 
     // Recursively "resolve" the data to assign fboId and factorize duplicate uniforms to shared uniforms.
     function rec (data, fboId, parentContext, parentFbos) {
       const parentContextVDOM = parentContext.map(({vdom}) => vdom);
-
 
       const genFboId = (fboIdCounter =>
         () => {
@@ -173,12 +190,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
         }
       )(-1);
 
-
       const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, ...dataRest } = data;
       const uniforms = {...dataUniforms};
 
-      const childrenDup = findChildrenDuplicates(data, parentContextVDOM);
-      const childrenContext = childrenDup.map(({vdom}) => {
+      const shared = findChildrenDuplicates(data, parentContextVDOM);
+      const childrenContext = shared.map(({vdom}) => {
         const fboId = genFboId();
         return { vdom, fboId };
       });
@@ -190,7 +206,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       const contextChildren = [];
       const children = [];
 
-      const childrenToRec = dataChildren.map(child => {
+      const toRecord = dataChildren.concat(shared).map(child => {
         const { data: childData, uniform, vdom } = child;
         let i = contextVDOM.indexOf(vdom);
         let fboId, addToCollection;
@@ -204,16 +220,19 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
             addToCollection = contextChildren;
           }
         }
-        return { fboId, childData, uniform, addToCollection };
+        if (uniform) uniforms[uniform] = FramebufferTextureObject(fboId);
+        return { fboId, childData, addToCollection };
       });
 
-      const childrenFbos = childrenToRec.map(({fboId})=>fboId);
-
+      const childrenFbos = toRecord.map(({fboId})=>fboId);
       const allFbos = parentFbos.concat(contextFbos).concat(childrenFbos);
 
-      childrenToRec.forEach(({ fboId, childData, uniform, addToCollection }) => {
-        if (addToCollection) addToCollection.push(rec(childData, fboId, context, allFbos));
-        uniforms[uniform] = FramebufferTextureObject(fboId);
+      const recorded = [];
+      toRecord.forEach(({ fboId, childData, addToCollection }) => {
+        if (recorded.indexOf(fboId) === -1) {
+          recorded.push(fboId);
+          if (addToCollection) addToCollection.push(rec(childData, fboId, context, allFbos));
+        }
       });
 
       dataContents.forEach(({ uniform, vdom }) => {
@@ -253,7 +272,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
 
       if (debug) {
-        console.debug("GL.View rendered with", data, contents); // eslint-disable-line no-console
+        console.debug("GL.View rendered with", data, contentsVDOM); // eslint-disable-line no-console
       }
 
       return renderVcontainer(
