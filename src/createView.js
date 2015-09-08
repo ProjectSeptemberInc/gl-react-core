@@ -72,7 +72,10 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     .filter(key => {
       const value = uniforms[key];
       // filter out the texture types...
-      return value && (typeof value === "function" || typeof value === "string" || typeof value === "object" && !(value instanceof Array));
+      return value && (
+        typeof value === "function" ||
+        typeof value === "string" ||
+        typeof value === "object" && (!(value instanceof Array) || typeof value[0] === "object"));
     })
     .forEach(name => {
       const value = uniforms[name];
