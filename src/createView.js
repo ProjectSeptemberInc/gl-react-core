@@ -63,7 +63,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       invariant(child.type === Uniform, "(Shader '%s') GL.View can only contains children of type GL.Uniform. Got '%s'", shaderName, child.type && child.type.displayName || child);
       const { name, children } = child.props;
       invariant(typeof name === "string" && name, "(Shader '%s') GL.Uniform must define an name String", shaderName);
-      invariant(!(name in glViewUniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be in {uniforms} props", shaderName);
+      invariant(!glViewUniforms || !(name in glViewUniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be in {uniforms} props", shaderName);
       invariant(!(name in uniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform", shaderName);
       uniforms[name] = children;
     });
