@@ -97,13 +97,13 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
             if (typeof c.type !== "function") {
               break;
             }
-            const instance = new c.type();
+            let instance = new c.type();
             if (!(instance instanceof GLComponent)) {
               break;
             }
             instance.props = c.props;
             c = reactFirstChildOnly(instance.render());
-            if (c.type === GLView) {
+            if (c && c.type === GLView) {
               childGLView = c;
               break;
             }
@@ -307,7 +307,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
-      const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload));
+      const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload||false));
       const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
 
       if (debug &&
@@ -345,8 +345,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     preload: PropTypes.bool
   };
   GLView.defaultProps = {
-    opaque: true,
-    preload: false
+    opaque: true
   };
 
   return GLView;
