@@ -1,20 +1,43 @@
 const invariant = require("invariant");
 
-function textureFromTarget (targetId) {
-  return { type: "target", id: targetId };
+function ContentTextureObject (contentId) {
+  return { type: "content", id: contentId };
 }
 
-function textureFromImage (srcOrObj) {
+function ImageTextureObject (srcOrObj) {
   if (typeof srcOrObj === "string")
     srcOrObj = { uri: srcOrObj };
   return { type: "image", value: srcOrObj };
 }
 
-function textureFromFramebuffer (fbId) {
+function FramebufferTextureObject (fbId) {
   return { type: "framebuffer", id: fbId };
 }
 
-module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer, renderVtarget, renderVGL) {
+function extractImages (uniforms) {
+  const images = [];
+  for (let u in uniforms) {
+    let value = uniforms[u];
+    if (value && typeof value === "object" && value.type === "image" && value.value) {
+      images.push(value.value);
+    }
+  }
+  return images;
+}
+
+function uniqImages (arr) {
+  var uris = [];
+  var coll = [];
+  arr.forEach(function (item) {
+    if (uris.indexOf(item.uri) === -1) {
+      uris.push(item.uri);
+      coll.push(item);
+    }
+  });
+  return coll;
+}
+
+module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontainer, renderVcontent, renderVGL) {
   const {
     Component,
     PropTypes
@@ -26,42 +49,46 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
       null;
   }
 
-  // buildData traverses the children, add elements to targets array and returns a data object
-  function buildData (shader, uniformsOriginal, width, height, children, targets) {
+  // buildData traverses the Virtual DOM to generates a data tree
+  function buildData (shader, glViewUniforms, width, height, glViewChildren, preload) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
-    const uniforms = {};
-    for (let key in uniformsOriginal) {
-      let value = uniformsOriginal[key];
+
+    const shaderName = Shaders.getName(shader);
+
+    const uniforms = { ...glViewUniforms };
+    const children = [];
+    const contents = [];
+
+    React.Children.forEach(glViewChildren, child => {
+      invariant(child.type === Uniform, "(Shader '%s') GL.View can only contains children of type GL.Uniform. Got '%s'", shaderName, child.type && child.type.displayName || child);
+      const { name, children } = child.props;
+      invariant(typeof name === "string" && name, "(Shader '%s') GL.Uniform must define an name String", shaderName);
+      invariant(!glViewUniforms || !(name in glViewUniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be in {uniforms} props", shaderName);
+      invariant(!(name in uniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform", shaderName);
+      uniforms[name] = children;
+    });
+
+    Object.keys(uniforms)
+    .filter(key => {
+      const value = uniforms[key];
       // filter out the texture types...
-      if (value && (typeof value === "string" || typeof value === "object" && !(value instanceof Array)))
-        value = textureFromImage(value);
-      uniforms[key] = value;
-    }
-
-    const data = {
-      shader,
-      uniforms,
-      width,
-      height,
-      children: []
-    };
-
-    React.Children.forEach(children, child => {
-      invariant(child.type === Target, "GL.View can only contains children of type GL.Target. Got '%s'", child.type && child.type.displayName || child);
-      const { uniform, children, style } = child.props;
-      invariant(typeof uniform === "string" && uniform, "GL.Target must define an uniform String.");
-      invariant(!(uniform in data.uniforms), "The uniform '%s' set by GL.Target is already defined in {uniforms} props");
-      const onlyChild = reactFirstChildOnly(children);
-      if (onlyChild) {
-        if (!React.isValidElement(onlyChild)) {
-          data.uniforms[uniform] = textureFromImage(onlyChild);
+      return value && (
+        typeof value === "function" ||
+        typeof value === "string" ||
+        typeof value === "object" && (!(value instanceof Array) || typeof value[0] === "object"));
+    })
+    .forEach(name => {
+      const value = uniforms[name];
+      if (value) {
+        if (typeof value !== "object" || !(value instanceof Array) && !React.isValidElement(value)) {
+          uniforms[name] = ImageTextureObject(value);
           return;
         }
         else {
           let childGLView;
 
           // Recursively unfold the children while there are GLComponent and not a GLView
-          let c = onlyChild;
+          let c = value;
           do {
             if (c.type === GLView) {
               childGLView = c;
@@ -70,13 +97,13 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
             if (typeof c.type !== "function") {
               break;
             }
-            const instance = new c.type();
+            let instance = new c.type();
             if (!(instance instanceof GLComponent)) {
               break;
             }
             instance.props = c.props;
             c = reactFirstChildOnly(instance.render());
-            if (c.type === GLView) {
+            if (c && c.type === GLView) {
               childGLView = c;
               break;
             }
@@ -84,23 +111,188 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
           while(c);
 
           if (childGLView) {
-            const id = data.children.length;
-            const { shader, uniforms, children: children2 } = childGLView.props;
-            const dataChild = buildData(shader, uniforms, width, height, children2, targets);
-            data.children.push(dataChild);
-            data.uniforms[uniform] = textureFromFramebuffer(id);
+            const childProps = childGLView.props;
+            children.push({
+              vdom: value,
+              data: buildData(
+                childProps.shader,
+                childProps.uniforms,
+                childProps.width || width,
+                childProps.height || height,
+                childProps.children,
+                "preload" in childProps ? childProps.preload : preload),
+              uniform: name
+            });
             return;
           }
         }
       }
 
-      // in other cases, we will use child as a target
-      const tid = targets.length;
-      data.uniforms[uniform] = textureFromTarget(tid);
-      targets.push(renderVtarget(style, width, height, tid, children));
+      // in other cases, we will use child as a content
+      contents.push({
+        vdom: value,
+        uniform: name
+      });
     });
 
-    return data;
+    return {
+      shader,
+      uniforms,
+      width,
+      height,
+      children,
+      contents,
+      preload
+    };
+  }
+
+  // resolveData takes the output of buildData to generate the final data tree
+  // that have resolved framebuffers and shared computation of duplicate uniforms (e.g: content / GL.View)
+  function resolveData (data) {
+
+    let imagesToPreload = [];
+
+    // contents are view/canvas/image/video to be rasterized "globally"
+    const contentsMeta = findContentsUniq(data);
+    const contentsVDOM = contentsMeta.map(({vdom}) => vdom);
+
+    // recursively find all contents but without duplicates by comparing VDOM reference
+    function findContentsUniq (data) {
+      const vdoms = [];
+      const contents = [];
+      function rec (data) {
+        data.contents.forEach(content => {
+          if (vdoms.indexOf(content.vdom) === -1) {
+            vdoms.push(content.vdom);
+            contents.push(content);
+          }
+        });
+        data.children.forEach(child => {
+          rec(child.data);
+        });
+      }
+      rec(data);
+      return contents;
+    }
+
+    // recursively find shared VDOM across direct children.
+    // if a VDOM is used in 2 different children, it means we can share its computation in contextChildren
+    function findChildrenDuplicates (data, toIgnore) {
+      // FIXME the code here is a bit complex and not so performant.
+      // We should see if we can precompute some data once before
+      function childVDOMs ({vdom,data}, arrVdom, arrData) {
+        if (toIgnore.indexOf(vdom) === -1 && arrVdom.indexOf(vdom) === -1) {
+          arrVdom.push(vdom);
+          arrData.push(data);
+        }
+        data.children.forEach(child => childVDOMs(child, arrVdom, arrData));
+      }
+      let allVdom = [];
+      let allData = [];
+      const childrenVDOMs = data.children.map(child => {
+        const arrVdom = [];
+        const arrData = [];
+        childVDOMs(child, arrVdom, arrData);
+        allVdom = allVdom.concat(arrVdom);
+        allData = allData.concat(arrData);
+        return arrVdom;
+      });
+      return allVdom.map((vdom, allIndex) => {
+        let occ = 0;
+        for (let i=0; i<childrenVDOMs.length; i++) {
+          if (childrenVDOMs[i].indexOf(vdom) !== -1) {
+            occ ++;
+            if (occ > 1) return { vdom: vdom, data: allData[allIndex] };
+          }
+        }
+      }).filter(obj => obj);
+    }
+
+    // Recursively "resolve" the data to assign fboId and factorize duplicate uniforms to shared uniforms.
+    function rec (data, fboId, parentContext, parentFbos) {
+      const parentContextVDOM = parentContext.map(({vdom}) => vdom);
+
+      const genFboId = (fboIdCounter =>
+        () => {
+          fboIdCounter ++;
+          while (
+            fboIdCounter === fboId ||
+            parentFbos.indexOf(fboIdCounter)!==-1) // ensure fbo is not already taken in parents
+            fboIdCounter ++;
+          return fboIdCounter;
+        }
+      )(-1);
+
+      const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, preload, ...dataRest } = data;
+      const uniforms = {...dataUniforms};
+
+      const shared = findChildrenDuplicates(data, parentContextVDOM);
+      const childrenContext = shared.map(({vdom}) => {
+        const fboId = genFboId();
+        return { vdom, fboId };
+      });
+
+      const context = parentContext.concat(childrenContext);
+      const contextVDOM = context.map(({vdom}) => vdom);
+      const contextFbos = context.map(({fboId}) => fboId);
+
+      const contextChildren = [];
+      const children = [];
+
+      const toRecord = dataChildren.concat(shared).map(child => {
+        const { data: childData, uniform, vdom } = child;
+        let i = contextVDOM.indexOf(vdom);
+        let fboId, addToCollection;
+        if (i===-1) {
+          fboId = genFboId();
+          addToCollection = children;
+        }
+        else {
+          fboId = context[i].fboId;
+          if (i >= parentContext.length) {// is a new context children
+            addToCollection = contextChildren;
+          }
+        }
+        if (uniform) uniforms[uniform] = FramebufferTextureObject(fboId);
+        return { fboId, childData, addToCollection };
+      });
+
+      const childrenFbos = toRecord.map(({fboId})=>fboId);
+      const allFbos = parentFbos.concat(contextFbos).concat(childrenFbos);
+
+      const recorded = [];
+      toRecord.forEach(({ fboId, childData, addToCollection }) => {
+        if (recorded.indexOf(fboId) === -1) {
+          recorded.push(fboId);
+          if (addToCollection) addToCollection.push(rec(childData, fboId, context, allFbos));
+        }
+      });
+
+      dataContents.forEach(({ uniform, vdom }) => {
+        const id = contentsVDOM.indexOf(vdom);
+        invariant(id!==-1, "contents was discovered by findContentsMeta");
+        uniforms[uniform] = ContentTextureObject(id);
+      });
+
+      // Check images to preload
+      if (preload) {
+        imagesToPreload = imagesToPreload.concat(extractImages(dataUniforms));
+      }
+
+      return {
+        ...dataRest, // eslint-disable-line no-undef
+        uniforms,
+        contextChildren,
+        children,
+        fboId
+      };
+    }
+
+    return {
+      data: rec(data, -1, [], []),
+      contentsVDOM,
+      imagesToPreload: uniqImages(imagesToPreload)
+    };
   }
 
   class GLView extends Component {
@@ -111,30 +303,34 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms } = props;
-      const cleanedProps = { ...props };
-      delete cleanedProps.style;
-      delete cleanedProps.width;
-      delete cleanedProps.height;
-      delete cleanedProps.shader;
-      delete cleanedProps.uniforms;
-      delete cleanedProps.children;
+      const { style, width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
 
-      const targets = [];
-      const data = buildData(shader, uniforms, width, height, children, targets);
+      invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
+
+      const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload||false));
+      const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
+
+      if (debug &&
+        typeof console !== "undefined" &&
+        console.debug // eslint-disable-line
+      ) {
+        console.debug("GL.View rendered with", data, contentsVDOM); // eslint-disable-line no-console
+      }
 
       return renderVcontainer(
-        style,
         width,
         height,
-        targets,
-        renderVGL(
-          cleanedProps,
+        contents,
+        renderVGL({
+          ...restProps, // eslint-disable-line no-undef
           width,
           height,
           data,
-          targets.length,
-          renderId)
+          nbContentTextures: contents.length,
+          imagesToPreload,
+          renderId,
+          opaque
+        })
       );
     }
   }
@@ -142,10 +338,11 @@ module.exports = function (React, Shaders, Target, GLComponent, renderVcontainer
   GLView.displayName = "GL.View";
   GLView.propTypes = {
     shader: PropTypes.number.isRequired,
-    width: PropTypes.number.isRequired,
-    height: PropTypes.number.isRequired,
+    width: PropTypes.number,
+    height: PropTypes.number,
     uniforms: PropTypes.object,
-    opaque: PropTypes.bool
+    opaque: PropTypes.bool,
+    preload: PropTypes.bool
   };
   GLView.defaultProps = {
     opaque: true

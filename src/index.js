@@ -1,11 +1,11 @@
 const createComponent = require("./createComponent");
 const createShaders = require("./createShaders");
-const createTarget = require("./createTarget");
+const createUniform = require("./createUniform");
 const createView = require("./createView");
 
 module.exports = {
   createComponent,
   createShaders,
-  createTarget,
+  createUniform,
   createView
 };
