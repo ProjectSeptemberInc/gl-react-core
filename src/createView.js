@@ -304,7 +304,6 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       const renderId = this._renderId ++;
       const props = this.props;
       const { style, width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
-
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
       const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload||false));
@@ -342,7 +341,9 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     height: PropTypes.number,
     uniforms: PropTypes.object,
     opaque: PropTypes.bool,
-    preload: PropTypes.bool
+    preload: PropTypes.bool,
+    autoRedraw: PropTypes.bool,
+    eventsThrough: PropTypes.bool
   };
   GLView.defaultProps = {
     opaque: true
