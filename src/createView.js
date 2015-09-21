@@ -5,6 +5,8 @@ function ContentTextureObject (contentId) {
 }
 
 function ImageTextureObject (srcOrObj) {
+  // FIXME: we should probably clarify into more types (image, array, ...).
+  // and `obj.value.uri` should be simplified to `obj.uri` in the image type
   if (typeof srcOrObj === "string")
     srcOrObj = { uri: srcOrObj };
   return { type: "image", value: srcOrObj };
@@ -18,7 +20,11 @@ function extractImages (uniforms) {
   const images = [];
   for (let u in uniforms) {
     let value = uniforms[u];
-    if (value && typeof value === "object" && value.type === "image" && value.value) {
+    if (value &&
+      typeof value === "object" &&
+      value.type === "image" &&
+      value.value &&
+      typeof value.value.uri === "string") {
       images.push(value.value);
     }
   }
@@ -69,9 +75,15 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     });
 
     Object.keys(uniforms)
-    .filter(key => {
+    .filter(key => { // filter out the texture types...
       const value = uniforms[key];
-      // filter out the texture types...
+      /*
+      FIXME This is very weak way of detecting this.
+      trusting the client to give appropriate value.
+      we need to find a better way.
+      unfortunately we might not be in browser context to do this with WebGL API.
+      Also `null` should be accepted if you just want the texture to be the default color (black transparent?).
+      */
       return value && (
         typeof value === "function" ||
         typeof value === "string" ||
@@ -88,6 +100,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
           let childGLView;
 
           // Recursively unfold the children while there are GLComponent and not a GLView
+
+          /* FIXME
+           * React might eventually improve to ease the work done here.
+           * see https://github.com/facebook/react/issues/4697#issuecomment-134335822
+           */
           let c = value;
           do {
             if (c.type === GLView) {
