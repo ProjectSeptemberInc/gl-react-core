@@ -1,19 +1,27 @@
 const invariant = require("invariant");
 
-function ContentTextureObject (contentId) {
-  return { type: "content", id: contentId };
+// In the future, *TextureObject format should have a "opts" that allows to give things like: { disableLinearInterpolation: true, ... }
+// we can unify this on the user side with { value, opts } format, on on this side by putting opts at the same level
+// using <GL.Uniform> we can allow: <GL.Uniform name="..." disableLinearInterpolation ...>...</...>
+
+function ContentTextureObject (id) {
+  return { type: "content", id };
 }
 
-function ImageTextureObject (srcOrObj) {
-  // FIXME: we should probably clarify into more types (image, array, ...).
-  // and `obj.value.uri` should be simplified to `obj.uri` in the image type
-  if (typeof srcOrObj === "string")
-    srcOrObj = { uri: srcOrObj };
-  return { type: "image", value: srcOrObj };
+function NDArrayTextureObject (ndarray) {
+  return { type: "ndarray", ndarray };
 }
 
-function FramebufferTextureObject (fbId) {
-  return { type: "framebuffer", id: fbId };
+function URITextureObject (obj) {
+  return { type: "uri", ...obj };
+}
+
+function FramebufferTextureObject (id) {
+  return { type: "fbo", id };
+}
+
+function withOpts (obj, opts) {
+  return { ...obj, opts };
 }
 
 function extractImages (uniforms) {
@@ -43,19 +51,46 @@ function uniqImages (arr) {
   return coll;
 }
 
+function isNonSamplerUniformValue (obj) {
+  let typ = typeof obj;
+  if (typ==="number" || typ==="boolean") return true;
+  if (obj !== null && typ === "object" && obj instanceof Array) {
+    typ = typeof obj[0];
+    return typ==="number" || typ==="boolean";
+  }
+  return false;
+}
+
 module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontainer, renderVcontent, renderVGL) {
   const {
     Component,
     PropTypes
   } = React;
 
-  function reactFirstChildOnly (children) {
+  function pickReactFirstChild (children) {
     return React.Children.count(children) === 1 ?
       (children instanceof Array ? children[0] : children) :
       null;
   }
 
-  // buildData traverses the Virtual DOM to generates a data tree
+  function unfoldGLComponent (c) { // FIXME: React might eventually improve to ease the work done here. see https://github.com/facebook/react/issues/4697#issuecomment-134335822
+    const instance = new c.type();
+    if (!(instance instanceof GLComponent)) return; // FIXME: can we check this without instanciating it?
+    instance.props = c.props;
+    return pickReactFirstChild(instance.render());
+  }
+
+  function findGLViewInGLComponentChildren (children) {
+    // going down the VDOM tree, while we can unfold GLComponent
+    for (let c = children; c && typeof c.type === "function"; c = unfoldGLComponent(c))
+      if (c.type === GLView)
+        return c; // found a GLView
+  }
+
+
+
+  //// buildData : traverses the Virtual DOM to generates a data tree
+
   function buildData (shader, glViewUniforms, width, height, glViewChildren, preload) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
@@ -75,81 +110,71 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     });
 
     Object.keys(uniforms)
-    .filter(key => { // filter out the texture types...
-      const value = uniforms[key];
-      /*
-      FIXME This is very weak way of detecting this.
-      trusting the client to give appropriate value.
-      we need to find a better way.
-      unfortunately we might not be in browser context to do this with WebGL API.
-      Also `null` should be accepted if you just want the texture to be the default color (black transparent?).
-      */
-      return value && (
-        typeof value === "function" ||
-        typeof value === "string" ||
-        typeof value === "object" && (!(value instanceof Array) || typeof value[0] === "object"));
-    })
     .forEach(name => {
-      const value = uniforms[name];
-      if (value) {
-        if (typeof value !== "object" || !(value instanceof Array) && !React.isValidElement(value)) {
-          uniforms[name] = ImageTextureObject(value);
-          return;
+      let value = uniforms[name];
+      if (isNonSamplerUniformValue(value)) return;
+
+      let opts, typ = typeof value;
+
+      if (value && typ === "object" && !value.prototype && "value" in value) {
+        // if value has a value field, we tread this field as the value, but keep opts in memory if provided
+        if (typeof value.opts === "object") {
+          opts = value.opts;
         }
-        else {
-          let childGLView;
-
-          // Recursively unfold the children while there are GLComponent and not a GLView
-
-          /* FIXME
-           * React might eventually improve to ease the work done here.
-           * see https://github.com/facebook/react/issues/4697#issuecomment-134335822
-           */
-          let c = value;
-          do {
-            if (c.type === GLView) {
-              childGLView = c;
-              break;
-            }
-            if (typeof c.type !== "function") {
-              break;
-            }
-            let instance = new c.type();
-            if (!(instance instanceof GLComponent)) {
-              break;
-            }
-            instance.props = c.props;
-            c = reactFirstChildOnly(instance.render());
-            if (c && c.type === GLView) {
-              childGLView = c;
-              break;
-            }
-          }
-          while(c);
-
-          if (childGLView) {
-            const childProps = childGLView.props;
-            children.push({
-              vdom: value,
-              data: buildData(
-                childProps.shader,
-                childProps.uniforms,
-                childProps.width || width,
-                childProps.height || height,
-                childProps.children,
-                "preload" in childProps ? childProps.preload : preload),
-              uniform: name
-            });
-            return;
-          }
-        }
+        value = value.value;
+        typ = typeof value;
       }
 
-      // in other cases, we will use child as a content
-      contents.push({
-        vdom: value,
-        uniform: name
-      });
+      if (!value) {
+        // falsy value are accepted to indicate blank texture
+        uniforms[name] = value;
+      }
+      else if (typ === "string") {
+        // uri specified as a string
+        uniforms[name] = withOpts(URITextureObject({ uri: value }), opts);
+      }
+      else if (typ === "object" && typeof value.uri === "string") {
+        // uri specified in an object, we keep all other fields for RN "local" image use-case
+        uniforms[name] = withOpts(URITextureObject(value), opts);
+      }
+      else if (typ === "object" && value.data && value.shape && value.stride) {
+        // ndarray kind of texture
+        uniforms[name] = withOpts(NDArrayTextureObject(value), opts);
+      }
+      else if(typ === "object" && (value instanceof Array ? React.isValidElement(value[0]) : React.isValidElement(value))) {
+        // value is a VDOM or array of VDOM
+        const childGLView = findGLViewInGLComponentChildren(value);
+        if (childGLView) {
+          // We have found a GL.View children, we integrate it in the tree and recursively do the same
+          const childProps = childGLView.props;
+          children.push({
+            vdom: value,
+            uniform: name,
+            data: buildData(
+              childProps.shader,
+              childProps.uniforms,
+              childProps.width || width,
+              childProps.height || height,
+              childProps.children,
+              "preload" in childProps ? childProps.preload : preload)
+          });
+        }
+        else {
+          // in other cases VDOM, we will use child as a content
+          contents.push({
+            vdom: value,
+            uniform: name,
+            opts
+          });
+        }
+      }
+      else {
+        // in any other case, it is an unrecognized invalid format
+        delete uniforms[name];
+        if (typeof console !== "undefined" && console.error)
+          console.error("invalid uniform '"+name+"' value:", value);
+        invariant(false, "Shader #%s: Unrecognized format for uniform '%s'", shader, name);
+      }
     });
 
     return {
@@ -163,8 +188,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     };
   }
 
-  // resolveData takes the output of buildData to generate the final data tree
+
+
+  ///// resolveData : takes the output of buildData to generate the final data tree
   // that have resolved framebuffers and shared computation of duplicate uniforms (e.g: content / GL.View)
+
   function resolveData (data) {
 
     let imagesToPreload = [];
@@ -285,10 +313,10 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
         }
       });
 
-      dataContents.forEach(({ uniform, vdom }) => {
+      dataContents.forEach(({ uniform, vdom, opts }) => {
         const id = contentsVDOM.indexOf(vdom);
         invariant(id!==-1, "contents was discovered by findContentsMeta");
-        uniforms[uniform] = ContentTextureObject(id);
+        uniforms[uniform] = withOpts(ContentTextureObject(id), opts);
       });
 
       // Check images to preload
@@ -311,6 +339,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       imagesToPreload: uniqImages(imagesToPreload)
     };
   }
+
+
 
   class GLView extends Component {
     constructor (props, context) {
