@@ -1,7 +1,13 @@
 const invariant = require("invariant");
-const resolveData = require("./data/resolve");
-const fillDataWithVDOMDescendants = require("./data/fillWithVDOMDescendants");
-const createBuildData = require("./data/build");
+const { fill, resolve, createBuild } = require("./data");
+
+function logResult (data, contentsVDOM) {
+  if (typeof console !== "undefined" &&
+    console.debug // eslint-disable-line
+  ) {
+    console.debug("GL.View rendered with", data, contentsVDOM); // eslint-disable-line no-console
+  }
+}
 
 module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontainer, renderVcontent, renderVGL) {
   const {
@@ -9,7 +15,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     PropTypes
   } = React;
 
-  let buildData; // will be set after GLView class defined.
+  let build; // will be set after GLView class defined.
 
   class GLView extends Component {
     constructor (props, context) {
@@ -20,32 +26,32 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       const renderId = this._renderId ++;
       const props = this.props;
       const { width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
+
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
       const {data, contentsVDOM, imagesToPreload} =
-        resolveData(
-          fillDataWithVDOMDescendants(
-            buildData(
-              shader, uniforms, width, height, children, preload||false)));
-      const contents = contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom));
+        resolve(
+          fill(
+            build(
+              shader,
+              uniforms,
+              width,
+              height,
+              children,
+              preload||false)));
 
-      if (debug &&
-        typeof console !== "undefined" &&
-        console.debug // eslint-disable-line
-      ) {
-        console.debug("GL.View rendered with", data, contentsVDOM); // eslint-disable-line no-console
-      }
+      if (debug) logResult(data, contentsVDOM);
 
       return renderVcontainer(
         width,
         height,
-        contents,
+        contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom)),
         renderVGL({
           ...restProps, // eslint-disable-line no-undef
           width,
           height,
           data,
-          nbContentTextures: contents.length,
+          nbContentTextures: contentsVDOM.length,
           imagesToPreload,
           renderId,
           opaque
@@ -69,7 +75,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     opaque: true
   };
 
-  buildData = createBuildData(React, Shaders, Uniform, GLComponent, GLView);
+  build = createBuild(React, Shaders, Uniform, GLComponent, GLView);
 
   return GLView;
 };

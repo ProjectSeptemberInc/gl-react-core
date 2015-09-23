@@ -6,8 +6,8 @@ const TextureObjects = require("./TextureObjects");
 const extractImages = require("./extractImages");
 const uniqImages = require("./uniqImages");
 
-///// resolveData : takes the output of buildData to generate the final data tree
-// that have resolved framebuffers and shared computation of duplicate uniforms (e.g: content / GL.View)
+///// resolve: takes the output of fillWithVDOMDescendants(buildData(*)) to generate the final data tree
+// The algorithm simplifies the data tree to use shared framebuffers if some VDOM is duplicated in the tree (e.g: content / GL.View)
 
 function resolve (dataTree) {
   let imagesToPreload = [];

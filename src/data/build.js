@@ -2,6 +2,8 @@ const invariant = require("invariant");
 const TextureObjects = require("./TextureObjects");
 const isNonSamplerUniformValue = require("./isNonSamplerUniformValue");
 
+//// build: converts the VDOM gl-react DSL into an internal data tree.
+
 module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
   // FIXME: maybe with React 0.14, we will be able to make this library depending on React so we don't have to do this closure
 
@@ -25,9 +27,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
         return c; // found a GLView
   }
 
-  //// buildData : traverses the Virtual DOM to generates a data tree
-
-  return function buildData (shader, glViewUniforms, width, height, glViewChildren, preload) {
+  return function build (shader, glViewUniforms, width, height, glViewChildren, preload) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
     const shaderName = Shaders.getName(shader);
@@ -86,7 +86,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
           children.push({
             vdom: value,
             uniform: name,
-            data: buildData(
+            data: build(
               childProps.shader,
               childProps.uniforms,
               childProps.width || width,

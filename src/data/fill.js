@@ -1,6 +1,8 @@
+// fill the result of build() with more information that will make resolve() more efficient
 
-function fillWithVDOMDescendants (dataTree) {
+function fill (dataTree) {
   function rec (node) {
+    // we compute all the descendants vdom under the current node
     let descendantsVDOM = [], descendantsVDOMData = [];
     const newChildren = node.data.children.map(node => {
       const res = rec(node);
@@ -26,4 +28,4 @@ function fillWithVDOMDescendants (dataTree) {
   return rec({ data: dataTree }).data;
 }
 
-module.exports = fillWithVDOMDescendants;
+module.exports = fill;
