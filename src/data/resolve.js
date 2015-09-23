@@ -17,7 +17,7 @@ function resolve (dataTree) {
   const contentsVDOM = contentsMeta.map(({vdom}) => vdom);
 
   // Recursively "resolve" the data to assign fboId and factorize duplicate uniforms to shared uniforms.
-  function rec (data, fboId, parentContext, parentFbos) {
+  function resolveRec (data, fboId, parentContext, parentFbos) {
     const { uniforms: dataUniforms, children: dataChildren, contents: dataContents, preload, ...dataRest } = data;
     const uniforms = {...dataUniforms};
     const parentContextVDOM = parentContext.map(({vdom}) => vdom);
@@ -79,7 +79,7 @@ function resolve (dataTree) {
     toRecord.forEach(({ data, fboId, addToCollection }) => {
       if (recorded.indexOf(fboId) === -1) {
         recorded.push(fboId);
-        if (addToCollection) addToCollection.push(rec(data, fboId, context, allFbos));
+        if (addToCollection) addToCollection.push(resolveRec(data, fboId, context, allFbos));
       }
     });
 
@@ -104,7 +104,7 @@ function resolve (dataTree) {
   }
 
   return {
-    data: rec(dataTree, -1, [], []),
+    data: resolveRec(dataTree, -1, [], []),
     contentsVDOM,
     imagesToPreload: uniqImages(imagesToPreload)
   };
