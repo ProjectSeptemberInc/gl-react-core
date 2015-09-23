@@ -42,11 +42,10 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
       invariant(typeof name === "string" && name, "(Shader '%s') GL.Uniform must define an name String", shaderName);
       invariant(!glViewUniforms || !(name in glViewUniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be in {uniforms} props", shaderName);
       invariant(!(name in uniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform", shaderName);
-      uniforms[name] = children.value ? children : { value: children, opts }; // eslint-disable-line no-undef
+      uniforms[name] = !children || children.value ? children : { value: children, opts }; // eslint-disable-line no-undef
     });
 
-    Object.keys(uniforms)
-    .forEach(name => {
+    Object.keys(uniforms).forEach(name => {
       let value = uniforms[name];
       if (isNonSamplerUniformValue(value)) return;
 
