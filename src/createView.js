@@ -25,7 +25,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { width, height, children, shader, uniforms, debug, preload, opaque, visibleContent, ...restProps } = props;
+      const { style, width, height, children, shader, uniforms, debug, preload, opaque, visibleContent, ...restProps } = props;
 
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
@@ -55,7 +55,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
           imagesToPreload,
           renderId,
           opaque
-        })
+        }),
+        style
       );
     }
   }
