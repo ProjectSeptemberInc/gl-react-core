@@ -1,9 +1,5 @@
 const invariant = require("invariant");
 
-// In the future, *TextureObject format should have a "opts" that allows to give things like: { disableLinearInterpolation: true, ... }
-// we can unify this on the user side with { value, opts } format, on on this side by putting opts at the same level
-// using <GL.Uniform> we can allow: <GL.Uniform name="..." disableLinearInterpolation ...>...</...>
-
 function ContentTextureObject (id) {
   return { type: "content", id };
 }
@@ -102,11 +98,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
 
     React.Children.forEach(glViewChildren, child => {
       invariant(child.type === Uniform, "(Shader '%s') GL.View can only contains children of type GL.Uniform. Got '%s'", shaderName, child.type && child.type.displayName || child);
-      const { name, children } = child.props;
+      const { name, children, ...opts } = child.props;
       invariant(typeof name === "string" && name, "(Shader '%s') GL.Uniform must define an name String", shaderName);
       invariant(!glViewUniforms || !(name in glViewUniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be in {uniforms} props", shaderName);
       invariant(!(name in uniforms), "(Shader '%s') The uniform '%s' set by GL.Uniform must not be defined in another GL.Uniform", shaderName);
-      uniforms[name] = children;
+      uniforms[name] = children.value ? children : { value: children, opts }; // eslint-disable-line no-undef
     });
 
     Object.keys(uniforms)
@@ -171,8 +167,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       else {
         // in any other case, it is an unrecognized invalid format
         delete uniforms[name];
-        if (typeof console !== "undefined" && console.error)
-          console.error("invalid uniform '"+name+"' value:", value);
+        if (typeof console !== "undefined" && console.error) console.error("invalid uniform '"+name+"' value:", value); // eslint-disable-line no-console
         invariant(false, "Shader #%s: Unrecognized format for uniform '%s'", shader, name);
       }
     });
@@ -350,7 +345,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
+      const { width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
       const {data, contentsVDOM, imagesToPreload} = resolveData(buildData(shader, uniforms, width, height, children, preload||false));
