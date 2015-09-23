@@ -25,7 +25,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { width, height, children, shader, uniforms, debug, preload, opaque, ...restProps } = props;
+      const { width, height, children, shader, uniforms, debug, preload, opaque, visibleContent, ...restProps } = props;
 
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
@@ -45,7 +45,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       return renderVcontainer(
         width,
         height,
-        contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom)),
+        contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom, visibleContent)),
         renderVGL({
           ...restProps, // eslint-disable-line no-undef
           width,
@@ -69,7 +69,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     opaque: PropTypes.bool,
     preload: PropTypes.bool,
     autoRedraw: PropTypes.bool,
-    eventsThrough: PropTypes.bool
+    eventsThrough: PropTypes.bool,
+    visibleContent: PropTypes.bool
   };
   GLView.defaultProps = {
     opaque: true
