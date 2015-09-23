@@ -25,7 +25,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms, debug, preload, opaque, visibleContent, ...restProps } = props;
+      const { style, width, height, children, shader, uniforms, debug, preload, opaque, visibleContent, eventsThrough, ...restProps } = props;
 
       invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
 
@@ -43,9 +43,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       if (debug) logResult(data, contentsVDOM);
 
       return renderVcontainer(
-        width,
-        height,
-        contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom, visibleContent)),
+        { width, height, style, visibleContent, eventsThrough },
+        contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom, { visibleContent })),
         renderVGL({
           ...restProps, // eslint-disable-line no-undef
           width,
@@ -54,9 +53,10 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
           nbContentTextures: contentsVDOM.length,
           imagesToPreload,
           renderId,
-          opaque
-        }),
-        style
+          opaque,
+          visibleContent,
+          eventsThrough
+        })
       );
     }
   }
