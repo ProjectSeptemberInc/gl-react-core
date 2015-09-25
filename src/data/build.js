@@ -27,7 +27,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
         return c; // found a GLView
   }
 
-  return function build (shader, glViewUniforms, width, height, glViewChildren, preload) {
+  return function build (shader, glViewUniforms, width, height, glViewChildren, preload, premultipliedAlpha) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
     const shaderName = Shaders.getName(shader);
@@ -91,7 +91,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
               childProps.width || width,
               childProps.height || height,
               childProps.children,
-              "preload" in childProps ? childProps.preload : preload)
+              "preload" in childProps ? childProps.preload : preload,
+              "premultipliedAlpha" in childProps ? childProps.premultipliedAlpha : premultipliedAlpha)
           });
         }
         else {
@@ -118,7 +119,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
       height,
       children,
       contents,
-      preload
+      preload,
+      premultipliedAlpha
     };
   };
 };
