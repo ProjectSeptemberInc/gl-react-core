@@ -76,7 +76,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     premultipliedAlpha: PropTypes.bool
   };
   GLView.defaultProps = {
-    opaque: true
+    opaque: true,
+    premultipliedAlpha: false
   };
 
   build = createBuild(React, Shaders, Uniform, GLComponent, GLView);
