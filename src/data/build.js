@@ -92,7 +92,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
               childProps.height || height,
               childProps.children,
               "preload" in childProps ? childProps.preload : preload,
-              childProps.premultipliedAlpha)
+              "premultipliedAlpha" in childProps ? childProps.premultipliedAlpha : premultipliedAlpha)
           });
         }
         else {
