@@ -22,6 +22,12 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       super(props, context);
       this._renderId = 1;
     }
+    captureFrame (callback) {
+      const c = this.refs.canvas;
+      invariant(c && c.captureFrame, "captureFrame() should be implemented by GLCanvas");
+      invariant(typeof callback === "function", "captureFrame(cb) should have a callback function in first parameter");
+      return c.captureFrame.call(c, callback);
+    }
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
