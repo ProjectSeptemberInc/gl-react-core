@@ -13,21 +13,26 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
       null;
   }
 
-  function unfoldGLComponent (c) { // FIXME: React might eventually improve to ease the work done here. see https://github.com/facebook/react/issues/4697#issuecomment-134335822
-    const instance = new c.type();
+  function unfoldGLComponent (c, glComponentNameArray) {
+    const instance = new c.type(); // FIXME: React might eventually improve to ease the work done here. see https://github.com/facebook/react/issues/4697#issuecomment-134335822
     if (!(instance instanceof GLComponent)) return; // FIXME: can we check this without instanciating it?
     instance.props = c.props;
-    return pickReactFirstChild(instance.render());
+    const child = pickReactFirstChild(instance.render());
+    const glComponentName = c.type.displayName || c.type.name;
+    glComponentNameArray.push(glComponentName);
+    return child;
   }
 
   function findGLViewInGLComponentChildren (children) {
     // going down the VDOM tree, while we can unfold GLComponent
-    for (let c = children; c && typeof c.type === "function"; c = unfoldGLComponent(c))
+    const via = [];
+    for (let c = children; c && typeof c.type === "function"; c = unfoldGLComponent(c, via)) {
       if (c.type === GLView)
-        return c; // found a GLView
+        return { childGLView: c, via }; // found a GLView
+    }
   }
 
-  return function build (shader, glViewUniforms, width, height, glViewChildren, preload) {
+  return function build (shader, glViewUniforms, width, height, glViewChildren, preload, via) {
     invariant(Shaders.exists(shader), "Shader #%s does not exists", shader);
 
     const shaderName = Shaders.getName(shader);
@@ -78,8 +83,9 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
       }
       else if(typ === "object" && (value instanceof Array ? React.isValidElement(value[0]) : React.isValidElement(value))) {
         // value is a VDOM or array of VDOM
-        const childGLView = findGLViewInGLComponentChildren(value);
-        if (childGLView) {
+        const res = findGLViewInGLComponentChildren(value);
+        if (res) {
+          const { childGLView, via } = res;
           // We have found a GL.View children, we integrate it in the tree and recursively do the same
           const childProps = childGLView.props;
           children.push({
@@ -91,7 +97,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
               childProps.width || width,
               childProps.height || height,
               childProps.children,
-              "preload" in childProps ? childProps.preload : preload)
+              "preload" in childProps ? childProps.preload : preload,
+              via)
           });
         }
         else {
@@ -118,7 +125,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
       height,
       children,
       contents,
-      preload
+      preload,
+      via
     };
   };
 };

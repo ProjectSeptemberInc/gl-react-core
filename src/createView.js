@@ -22,8 +22,11 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
       super(props, context);
       this._renderId = 1;
     }
+    getGLCanvas () {
+      return this.refs.canvas;
+    }
     captureFrame (callback) {
-      const c = this.refs.canvas;
+      const c = this.getGLCanvas();
       invariant(c && c.captureFrame, "captureFrame() should be implemented by GLCanvas");
       invariant(typeof callback === "function", "captureFrame(cb) should have a callback function in first parameter");
       return c.captureFrame.call(c, callback);
@@ -44,7 +47,8 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
               width,
               height,
               children,
-              preload||false)));
+              preload||false,
+              [])));
 
       if (debug) logResult(data, contentsVDOM);
 
