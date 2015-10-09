@@ -1,6 +1,6 @@
 {
   "name": "gl-react-core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "shared code across gl-react and gl-react-native",
   "main": "src/index.js",
   "browserify": {
