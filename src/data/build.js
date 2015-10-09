@@ -4,7 +4,7 @@ const isNonSamplerUniformValue = require("./isNonSamplerUniformValue");
 
 //// build: converts the VDOM gl-react DSL into an internal data tree.
 
-module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
+module.exports = function (React, Shaders, Uniform, GLView) {
   // FIXME: maybe with React 0.14, we will be able to make this library depending on React so we don't have to do this closure
 
   function pickReactFirstChild (children) {
@@ -14,11 +14,12 @@ module.exports = function (React, Shaders, Uniform, GLComponent, GLView) {
   }
 
   function unfoldGLComponent (c, glComponentNameArray) {
-    const instance = new c.type(); // FIXME: React might eventually improve to ease the work done here. see https://github.com/facebook/react/issues/4697#issuecomment-134335822
-    if (!(instance instanceof GLComponent)) return; // FIXME: can we check this without instanciating it?
+    const Class = c.type;
+    if (!(Class.isGLComponent)) return;
+    const instance = new Class(); // FIXME: React might eventually improve to ease the work done here. see https://github.com/facebook/react/issues/4697#issuecomment-134335822
     instance.props = c.props;
     const child = pickReactFirstChild(instance.render());
-    const glComponentName = c.type.displayName || c.type.name;
+    const glComponentName = Class.displayName || Class.name || "";
     glComponentNameArray.push(glComponentName);
     return child;
   }

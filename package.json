@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "browserify": {
     "transform": [
-      "babelify"
+      "babelify",
+      "envify"
     ]
   },
   "repository": {
@@ -22,11 +23,12 @@
   },
   "homepage": "https://github.com/ProjectSeptemberInc/gl-react-core#readme",
   "dependencies": {
+    "babelify": "^6.3.0",
+    "envify": "^3.4.0",
     "invariant": "^2.1.0"
   },
   "devDependencies": {
-    "babelify": "^6.2.0",
-    "eslint": "^1.2.1",
-    "eslint-plugin-react": "^3.2.3"
+    "eslint": "^1.6.0",
+    "eslint-plugin-react": "^3.5.1"
   }
 }

@@ -9,7 +9,7 @@ function logResult (data, contentsVDOM) {
   }
 }
 
-module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontainer, renderVcontent, renderVGL) {
+module.exports = function (React, Shaders, Uniform, renderVcontainer, renderVcontent, renderVGL) {
   const {
     Component,
     PropTypes
@@ -87,7 +87,7 @@ module.exports = function (React, Shaders, Uniform, GLComponent, renderVcontaine
     opaque: true
   };
 
-  build = createBuild(React, Shaders, Uniform, GLComponent, GLView);
+  build = createBuild(React, Shaders, Uniform, GLView);
 
   return GLView;
 };
