@@ -4,10 +4,10 @@ function extractImages (uniforms) {
     let value = uniforms[u];
     if (value &&
       typeof value === "object" &&
-      value.type === "image" &&
-      value.value &&
-      typeof value.value.uri === "string") {
-      images.push(value.value);
+      value.type === "uri" &&
+      value.uri &&
+      typeof value.uri === "string") {
+      images.push(value);
     }
   }
   return images;
