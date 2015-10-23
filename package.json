@@ -22,6 +22,9 @@
     "url": "https://github.com/ProjectSeptemberInc/gl-react-core/issues"
   },
   "homepage": "https://github.com/ProjectSeptemberInc/gl-react-core#readme",
+  "peerDependencies": {
+    "react": "^0.14.0"
+  },
   "dependencies": {
     "babelify": "^6.3.0",
     "envify": "^3.4.0",

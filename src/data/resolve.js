@@ -7,7 +7,7 @@ const extractImages = require("./extractImages");
 const uniqImages = require("./uniqImages");
 
 ///// resolve: takes the output of fill(build(*)) to generate the final data tree
-// The algorithm simplifies the data tree to use shared framebuffers if some VDOM is duplicated in the tree (e.g: content / GL.View)
+// The algorithm simplifies the data tree to use shared framebuffers if some VDOM is duplicated in the tree (e.g: content / GL.Node)
 
 function resolve (dataTree) {
   let imagesToPreload = [];

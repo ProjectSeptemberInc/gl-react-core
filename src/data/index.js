@@ -1,6 +1,6 @@
 
 module.exports = {
-  createBuild: require("./build"),
+  build: require("./build"),
   fill: require("./fill"),
   resolve: require("./resolve")
 };

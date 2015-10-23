@@ -1,13 +1,13 @@
 const createComponent = require("./createComponent");
-const createComponentDeprecated = require("./createComponentDeprecated");
-const createShaders = require("./createShaders");
-const createUniform = require("./createUniform");
-const createView = require("./createView");
+const createSurface = require("./createSurface");
+const Node = require("./Node");
+const Shaders = require("./Shaders");
+const Uniform = require("./Uniform");
 
 module.exports = {
   createComponent,
-  createComponentDeprecated,
-  createShaders,
-  createUniform,
-  createView
+  createSurface,
+  Node,
+  Shaders,
+  Uniform
 };

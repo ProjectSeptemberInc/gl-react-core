@@ -1,23 +1,23 @@
+const React = require("react");
+const {
+  Component,
+  PropTypes
+} = React;
 const invariant = require("invariant");
-const { fill, resolve, createBuild } = require("./data");
+const { fill, resolve, build } = require("./data");
+const findGLNodeInGLComponentChildren = require("./data/findGLNodeInGLComponentChildren");
 
 function logResult (data, contentsVDOM) {
   if (typeof console !== "undefined" &&
     console.debug // eslint-disable-line
   ) {
-    console.debug("GL.View rendered with", data, contentsVDOM); // eslint-disable-line no-console
+    console.debug("GL.Surface rendered with", data, contentsVDOM); // eslint-disable-line no-console
   }
 }
 
-module.exports = function (React, Shaders, Uniform, renderVcontainer, renderVcontent, renderVGL) {
-  const {
-    Component,
-    PropTypes
-  } = React;
+module.exports = function (renderVcontainer, renderVcontent, renderVGL) {
 
-  let build; // will be set after GLView class defined.
-
-  class GLView extends Component {
+  class GLSurface extends Component {
     constructor (props, context) {
       super(props, context);
       this._renderId = 1;
@@ -34,27 +34,38 @@ module.exports = function (React, Shaders, Uniform, renderVcontainer, renderVcon
     render() {
       const renderId = this._renderId ++;
       const props = this.props;
-      const { style, width, height, children, shader, uniforms, debug, preload, opaque, visibleContent, eventsThrough, ...restProps } = props;
+      const {
+        style,
+        width,
+        height,
+        children,
+        debug,
+        preload,
+        opaque,
+        visibleContent,
+        eventsThrough,
+        ...restProps
+      } = props;
 
-      invariant(width && height && width>0 && height>0, "width and height are required for the root GLView");
+      const { via, childGLNode } =
+        findGLNodeInGLComponentChildren(children);
 
-      const {data, contentsVDOM, imagesToPreload} =
+      const { data, contentsVDOM, imagesToPreload } =
         resolve(
           fill(
             build(
-              shader,
-              uniforms,
+              childGLNode,
               width,
               height,
-              children,
-              preload||false,
-              [])));
+              preload,
+              via)));
 
       if (debug) logResult(data, contentsVDOM);
 
       return renderVcontainer(
         { width, height, style, visibleContent, eventsThrough },
-        contentsVDOM.map((vdom, i) => renderVcontent(data.width, data.height, i, vdom, { visibleContent })),
+        contentsVDOM.map((vdom, i) =>
+          renderVcontent(data.width, data.height, i, vdom, { visibleContent })),
         renderVGL({
           ...restProps, // eslint-disable-line no-undef
           width,
@@ -71,23 +82,28 @@ module.exports = function (React, Shaders, Uniform, renderVcontainer, renderVcon
     }
   }
 
-  GLView.displayName = "GL.View";
-  GLView.propTypes = {
-    shader: PropTypes.number.isRequired,
-    width: PropTypes.number,
-    height: PropTypes.number,
-    uniforms: PropTypes.object,
+  GLSurface.displayName = "GL.Surface";
+
+  GLSurface.propTypes = {
+    width: PropTypes.number.isRequired,
+    height: PropTypes.number.isRequired,
+    children: PropTypes.element.isRequired,
     opaque: PropTypes.bool,
     preload: PropTypes.bool,
     autoRedraw: PropTypes.bool,
     eventsThrough: PropTypes.bool,
-    visibleContent: PropTypes.bool
-  };
-  GLView.defaultProps = {
-    opaque: true
+    visibleContent: PropTypes.bool,
+    onLoad: PropTypes.func,
+    onProgress: PropTypes.func
   };
 
-  build = createBuild(React, Shaders, Uniform, GLView);
+  GLSurface.defaultProps = {
+    opaque: true,
+    preload: false,
+    autoRedraw: false,
+    eventsThrough: false,
+    visibleContent: false
+  };
 
-  return GLView;
+  return GLSurface;
 };
