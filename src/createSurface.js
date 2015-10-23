@@ -50,6 +50,8 @@ module.exports = function (renderVcontainer, renderVcontent, renderVGL) {
       const { via, childGLNode } =
         findGLNodeInGLComponentChildren(children);
 
+      invariant(childGLNode, "GL.Surface must have in children a GL.Node or a GL Component");
+
       const { data, contentsVDOM, imagesToPreload } =
         resolve(
           fill(

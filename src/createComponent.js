@@ -11,8 +11,8 @@ module.exports = function createComponent (renderGLNode, staticFields) {
       const glNode = renderGLNode(this.props);
 
       invariant(glNode && glNode.type && (glNode.type.isGLNode || glNode.type.isGLComponent),
-      "The GL.createComponent function parameter must return a GL.Node or "+
-      "another GL Component");
+      "%s: The GL.createComponent function parameter must return a GL.Node or "+
+      "another GL Component", GLComponent.displayName);
 
       return glNode;
     }

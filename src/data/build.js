@@ -91,7 +91,7 @@ module.exports = function build (GLNode, parentWidth, parentHeight, parentPreloa
       // in any other case, it is an unrecognized invalid format
       delete uniforms[name];
       if (typeof console !== "undefined" && console.error) console.error("invalid uniform '"+name+"' value:", value); // eslint-disable-line no-console
-      invariant(false, "Shader #%s: Unrecognized format for uniform '%s'", shader, name);
+      invariant(false, "Shader '%s': Unrecognized format for uniform '%s'", shaderName, name);
     }
   });
 
