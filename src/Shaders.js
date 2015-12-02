@@ -1,4 +1,4 @@
-const EventEmitter = require("events");
+const {EventEmitter} = require("events");
 const invariant = require("invariant");
 
 let _uid = 1;
@@ -35,7 +35,7 @@ const Shaders = {
     return names[id];
   },
   list () {
-    return Object.keys(names);
+    return Object.keys(shaders);
   },
   exists (id) {
     return typeof id === "number" && id >= 1 && id < _uid;

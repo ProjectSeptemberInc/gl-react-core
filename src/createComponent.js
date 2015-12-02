@@ -1,4 +1,4 @@
-const React = require("react");
+const React = require("./react-runtime");
 const invariant = require("invariant");
 
 module.exports = function createComponent (renderGLNode, staticFields) {

@@ -1,4 +1,4 @@
-const React = require("react");
+const React = require("./react-runtime");
 const { Component, PropTypes } = React;
 const invariant = require("invariant");
 
